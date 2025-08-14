@@ -100,6 +100,5 @@ WEBHOOK_URL = os.environ.get("RENDER_EXTERNAL_URL")  # Render يعطي هذا ا
 requests.get(f"https://api.telegram.org/bot{TOKEN}/setWebhook?url={WEBHOOK_URL}/{TOKEN}")
 
 # --- Run Flask ---
-if __name__ "__main__":
-
+if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8080)
