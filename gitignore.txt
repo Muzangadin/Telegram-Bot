@@ -1,4 +1,0 @@
-goma8rabot*.json
-*.pyc
-__pycache__/
-.env
