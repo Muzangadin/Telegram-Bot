@@ -4,23 +4,17 @@ from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes
-from flask import Flask, request
 from keep_alive import keep_alive
-import requests
 
 # --- Keep Alive Server ---
 keep_alive()
 
 # --- Telegram Bot Token ---
-TOKEN = os.environ.get("BOT_TOKEN")  # ضعي توكن البوت في Environment Variables
-import requests
-
-WEBHOOK_URL = os.environ.get("RENDER_EXTERNAL_URL")  # الرابط الأساسي من Render
-requests.get(f"https://api.telegram.org/bot{TOKEN}/setWebhook?url={WEBHOOK_URL}/{TOKEN}")
+TOKEN = os.environ.get("BOT_TOKEN")  # ضعي توكن البوت كـ Environment Variable في Render
 
 # --- Google Service Account ---
 SCOPES = ['https://www.googleapis.com/auth/drive']
-SERVICE_ACCOUNT_JSON = os.environ.get("GOOGLE_SERVICE_JSON")  # الصقي نص JSON كامل في Environment Variables
+SERVICE_ACCOUNT_JSON = os.environ.get("GOOGLE_SERVICE_JSON")  # الصقي محتوى JSON كامل في Render
 info = json.loads(SERVICE_ACCOUNT_JSON)
 credentials = service_account.Credentials.from_service_account_info(info, scopes=SCOPES)
 drive_service = build('drive', 'v3', credentials=credentials)
@@ -83,28 +77,10 @@ async def handle_subject(update: Update, context: ContextTypes.DEFAULT_TYPE):
     reply_markup = InlineKeyboardMarkup(keyboard)
     await query.edit_message_text(text=f"محاضرات تخصص {subjects[subject]}:", reply_markup=reply_markup)
 
-# --- Flask App for Webhook ---
-app = Flask(__name__)
-bot_app = ApplicationBuilder().token(TOKEN).build()
-bot_app.add_handler(CommandHandler("start", start))
-bot_app.add_handler(CallbackQueryHandler(handle_subject, pattern="^(radiology|nursing|geology|pharmacy|medicine|dentistry|psychology|cs|law|labs|engineering)$"))
+# --- Application ---
+app = ApplicationBuilder().token(TOKEN).build()
+app.add_handler(CommandHandler("start", start))
+app.add_handler(CallbackQueryHandler(handle_subject, pattern="^(radiology|nursing|geology|pharmacy|medicine|dentistry|psychology|cs|law|labs|engineering)$"))
 
-@app.route(f'/{TOKEN}', methods=['POST'])
-def webhook():
-    update = Update.de_json(request.get_json(force=True), bot_app.bot)
-    bot_app.dispatcher.process_update(update)
-    return "ok"
-
-@app.route('/')
-def index():
-    return "Bot is alive!"
-
-# --- Set Webhook ---
-WEBHOOK_URL = os.environ.get("RENDER_EXTERNAL_URL")  # Render يعطي هذا الرابط تلقائي
-requests.get(f"https://api.telegram.org/bot{TOKEN}/setWebhook?url={WEBHOOK_URL}/{TOKEN}")
-
-# --- Run Flask ---
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8080))  # إذا PORT غير موجود، استخدم 8080 كافتراضي
-    app.run(host="0.0.0.0", port=port)
-
+# --- Run bot with polling ---
+app.run_polling()
