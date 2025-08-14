@@ -101,4 +101,5 @@ requests.get(f"https://api.telegram.org/bot{TOKEN}/setWebhook?url={WEBHOOK_URL}/
 
 # --- Run Flask ---
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8080)
+    port = int(os.environ.get("PORT", 8080))  # إذا PORT غير موجود، استخدم 8080 كافتراضي
+    app.run(host="0.0.0.0", port=port)
