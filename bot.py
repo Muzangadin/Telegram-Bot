@@ -13,6 +13,10 @@ keep_alive()
 
 # --- Telegram Bot Token ---
 TOKEN = os.environ.get("BOT_TOKEN")  # ضعي توكن البوت في Environment Variables
+import requests
+
+WEBHOOK_URL = os.environ.get("RENDER_EXTERNAL_URL")  # الرابط الأساسي من Render
+requests.get(f"https://api.telegram.org/bot{TOKEN}/setWebhook?url={WEBHOOK_URL}/{TOKEN}")
 
 # --- Google Service Account ---
 SCOPES = ['https://www.googleapis.com/auth/drive']
@@ -103,3 +107,4 @@ requests.get(f"https://api.telegram.org/bot{TOKEN}/setWebhook?url={WEBHOOK_URL}/
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))  # إذا PORT غير موجود، استخدم 8080 كافتراضي
     app.run(host="0.0.0.0", port=port)
+
