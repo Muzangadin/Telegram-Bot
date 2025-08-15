@@ -4,13 +4,24 @@ from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes
-from keep_alive import keep_alive
+from flask import Flask
+from threading import Thread
 
 # --- Keep Alive ---
-keep_alive()
+app_flask = Flask('')
+
+@app_flask.route('/')
+def home():
+    return "Bot is alive!"
+
+def run():
+    port = int(os.environ.get("PORT", 8080))
+    app_flask.run(host='0.0.0.0', port=port)
+
+Thread(target=run).start()
 
 # --- Telegram Bot Token ---
-TOKEN = os.environ.get("BOT_TOKEN")
+TOKEN = os.environ.get("BOT_TOKEN")  # التوكن القديم موجود كـ Environment Variable في Render
 
 # --- Google Service Account ---
 SCOPES = ['https://www.googleapis.com/auth/drive']
@@ -65,7 +76,7 @@ async def handle_subject(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     results = drive_service.files().list(
         q=f"'{folder_id}' in parents and trashed=false",
-        fields="files(id, name, webViewLink)"
+        fields="files(id, name, webViewLink, mimeType)"
     ).execute()
 
     files = results.get('files', [])
@@ -73,7 +84,7 @@ async def handle_subject(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(f"لا توجد محاضرات مرفوعة لتخصص {subjects[subject]}.")
         return
 
-    # إرسال روابط مباشرة بدلاً من تحميل الملفات الكبيرة
+    # إرسال روابط مباشرة أو الملفات الصغيرة
     message_text = f"محاضرات تخصص {subjects[subject]}:\n\n"
     for file in files:
         message_text += f"[{file['name']}]({file['webViewLink']})\n"
@@ -86,21 +97,4 @@ app.add_handler(CommandHandler("start", start))
 app.add_handler(CallbackQueryHandler(handle_subject, pattern="^(radiology|nursing|geology|pharmacy|medicine|dentistry|psychology|cs|law|labs|engineering)$"))
 
 if __name__ == "__main__":
-    import os
-    port = int(os.environ.get("PORT", 8080))
-    from flask import Flask
-    from threading import Thread
-
-    flask_app = Flask('')
-
-    @flask_app.route('/')
-    def home():
-        return "Bot is alive!"
-
-    def run():
-        flask_app.run(host='0.0.0.0', port=port)
-
-    t = Thread(target=run)
-    t.start()
-
     app.run_polling()
