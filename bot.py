@@ -6,15 +6,15 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes
 from keep_alive import keep_alive
 
-# --- Keep Alive Server ---
+# --- Keep Alive ---
 keep_alive()
 
 # --- Telegram Bot Token ---
-TOKEN = os.environ.get("BOT_TOKEN")  # ضعي توكن البوت كـ Environment Variable في Render
+TOKEN = os.environ.get("BOT_TOKEN")  # ضعي التوكن الجديد كـ Environment Variable في Render
 
 # --- Google Service Account ---
 SCOPES = ['https://www.googleapis.com/auth/drive']
-SERVICE_ACCOUNT_JSON = os.environ.get("GOOGLE_SERVICE_JSON")  # الصقي محتوى JSON كامل في Render
+SERVICE_ACCOUNT_JSON = os.environ.get("GOOGLE_SERVICE_JSON")
 info = json.loads(SERVICE_ACCOUNT_JSON)
 credentials = service_account.Credentials.from_service_account_info(info, scopes=SCOPES)
 drive_service = build('drive', 'v3', credentials=credentials)
@@ -82,5 +82,6 @@ app = ApplicationBuilder().token(TOKEN).build()
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CallbackQueryHandler(handle_subject, pattern="^(radiology|nursing|geology|pharmacy|medicine|dentistry|psychology|cs|law|labs|engineering)$"))
 
-# --- Run bot with polling ---
-app.run_polling()
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 8080))
+    app.run_polling()
