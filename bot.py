@@ -1,27 +1,23 @@
 import os
 import json
+from io import BytesIO
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
-from telegram import Update
+from googleapiclient.http import MediaIoBaseDownload
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes
 from keep_alive import keep_alive
-import requests
-from io import BytesIO
 
-# --- Keep Alive ---
 keep_alive()
 
-# --- Telegram Bot Token ---
 TOKEN = os.environ.get("BOT_TOKEN")
-
-# --- Google Service Account ---
-SCOPES = ['https://www.googleapis.com/auth/drive.readonly']
 SERVICE_ACCOUNT_JSON = os.environ.get("GOOGLE_SERVICE_JSON")
+
+SCOPES = ['https://www.googleapis.com/auth/drive.readonly']
 info = json.loads(SERVICE_ACCOUNT_JSON)
 credentials = service_account.Credentials.from_service_account_info(info, scopes=SCOPES)
 drive_service = build('drive', 'v3', credentials=credentials)
 
-# --- Subjects and Folders ---
 subjects = {
     "radiology": "📸 أشعة",
     "nursing": "🏥 تمريض",
@@ -50,9 +46,7 @@ folders = {
     "engineering": "17ypQxWyVZ_5PdixUo0Gop4p-0YiP0csx"
 }
 
-# --- Handlers ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    from telegram import InlineKeyboardButton, InlineKeyboardMarkup
     keyboard = [[InlineKeyboardButton(name, callback_data=key)] for key, name in subjects.items()]
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text("اختر التخصص:", reply_markup=reply_markup)
@@ -66,10 +60,9 @@ async def handle_subject(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text("لا يوجد مجلد مخصص لهذا التخصص.")
         return
 
-    # جلب الملفات من Google Drive
     results = drive_service.files().list(
         q=f"'{folder_id}' in parents and trashed=false",
-        fields="files(id, name, mimeType)"
+        fields="files(id, name)"
     ).execute()
     files = results.get('files', [])
 
@@ -80,28 +73,26 @@ async def handle_subject(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.edit_message_text(f"جارٍ إرسال الملفات لتخصص {subjects[subject]}...")
 
     for file in files:
-        # تنزيل الملف
         request = drive_service.files().get_media(fileId=file['id'])
-        file_data = BytesIO()
-        downloader = build('drive', 'v3', credentials=credentials)._http.request
-        request = drive_service.files().get_media(fileId=file['id'])
-        downloader = request.execute()
-        file_data.write(downloader)
-        file_data.seek(0)
-        await context.bot.send_document(chat_id=query.message.chat_id, document=file_data, filename=file['name'])
+        fh = BytesIO()
+        downloader = MediaIoBaseDownload(fh, request)
+        done = False
+        while not done:
+            status, done = downloader.next_chunk()
+        fh.seek(0)
+        await context.bot.send_document(chat_id=query.message.chat_id, document=fh, filename=file['name'])
 
-# --- Application ---
 app = ApplicationBuilder().token(TOKEN).build()
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CallbackQueryHandler(handle_subject, pattern="^(radiology|nursing|geology|pharmacy|medicine|dentistry|psychology|cs|law|labs|engineering)$"))
 
 if __name__ == "__main__":
     import os
-    port = int(os.environ.get("PORT", 8080))
     from flask import Flask
+    port = int(os.environ.get("PORT", 8080))
     flask_app = Flask(__name__)
 
-    @flask_app.route('/')
+    @flask_app.route("/")
     def home():
         return "Bot is alive!"
 
