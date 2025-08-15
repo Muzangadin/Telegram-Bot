@@ -1,27 +1,13 @@
 import os
 import json
+from flask import Flask, request
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, Bot
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes
-from flask import Flask
-from threading import Thread
-
-# --- Keep Alive ---
-app_flask = Flask('')
-
-@app_flask.route('/')
-def home():
-    return "Bot is alive!"
-
-def run():
-    port = int(os.environ.get("PORT", 8080))
-    app_flask.run(host='0.0.0.0', port=port)
-
-Thread(target=run).start()
 
 # --- Telegram Bot Token ---
-TOKEN = os.environ.get("BOT_TOKEN")  # التوكن القديم موجود كـ Environment Variable في Render
+TOKEN = os.environ.get("BOT_TOKEN")  # استخدمي التوكن القديم
 
 # --- Google Service Account ---
 SCOPES = ['https://www.googleapis.com/auth/drive']
@@ -59,7 +45,9 @@ folders = {
     "engineering": "17ypQxWyVZ_5PdixUo0Gop4p-0YiP0csx"
 }
 
-# --- Handlers ---
+# --- Telegram Bot Application ---
+bot_app = ApplicationBuilder().token(TOKEN).build()
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [[InlineKeyboardButton(name, callback_data=key)] for key, name in subjects.items()]
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -76,7 +64,7 @@ async def handle_subject(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     results = drive_service.files().list(
         q=f"'{folder_id}' in parents and trashed=false",
-        fields="files(id, name, webViewLink, mimeType)"
+        fields="files(id, name, webViewLink)"
     ).execute()
 
     files = results.get('files', [])
@@ -84,17 +72,31 @@ async def handle_subject(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(f"لا توجد محاضرات مرفوعة لتخصص {subjects[subject]}.")
         return
 
-    # إرسال روابط مباشرة أو الملفات الصغيرة
+    # إرسال روابط مباشرة للملفات
     message_text = f"محاضرات تخصص {subjects[subject]}:\n\n"
     for file in files:
         message_text += f"[{file['name']}]({file['webViewLink']})\n"
 
     await query.edit_message_text(text=message_text, parse_mode="Markdown")
 
-# --- Application ---
-app = ApplicationBuilder().token(TOKEN).build()
-app.add_handler(CommandHandler("start", start))
-app.add_handler(CallbackQueryHandler(handle_subject, pattern="^(radiology|nursing|geology|pharmacy|medicine|dentistry|psychology|cs|law|labs|engineering)$"))
+bot_app.add_handler(CommandHandler("start", start))
+bot_app.add_handler(CallbackQueryHandler(handle_subject, pattern="^(radiology|nursing|geology|pharmacy|medicine|dentistry|psychology|cs|law|labs|engineering)$"))
+
+# --- Flask Webhook Server ---
+app = Flask(__name__)
+bot = Bot(TOKEN)
+
+@app.route('/')
+def home():
+    return "Bot is alive!"
+
+@app.route(f'/{TOKEN}', methods=['POST'])
+def webhook():
+    update = Update.de_json(request.get_json(force=True), bot)
+    import asyncio
+    asyncio.run(bot_app.update_queue.put(update))
+    return "OK"
 
 if __name__ == "__main__":
-    app.run_polling()
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host="0.0.0.0", port=port)
