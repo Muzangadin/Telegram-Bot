@@ -7,11 +7,11 @@ from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandle
 from flask import Flask, request
 
 # --- إعدادات البوت ---
-TOKEN = "8162201601:AAFOBu_1ddni1jkNeqw1c-cts5EdKA4p1Ls"  # التوكن الجديد
+TOKEN = "8162201601:AAFOBu_1ddni1jkNeqw1c-cts5EdKA4p1Ls"  # توكن البوت الجديد
 SCOPES = ['https://www.googleapis.com/auth/drive']
 
 # --- إعداد Google Drive ---
-SERVICE_ACCOUNT_JSON = os.environ.get("GOOGLE_SERVICE_JSON")  # JSON في متغير البيئة
+SERVICE_ACCOUNT_JSON = os.environ.get("GOOGLE_SERVICE_JSON")  # ضع JSON كامل في متغير البيئة
 info = json.loads(SERVICE_ACCOUNT_JSON)
 credentials = service_account.Credentials.from_service_account_info(info, scopes=SCOPES)
 drive_service = build('drive', 'v3', credentials=credentials)
@@ -99,7 +99,7 @@ def webhook():
     return "ok"
 
 if __name__ == "__main__":
-    # ضبط الـ webhook على Render
+    # ضبط Webhook
     webhook_url = f"https://{os.environ.get('RENDER_EXTERNAL_HOSTNAME')}/{TOKEN}"
     app.bot.set_webhook(url=webhook_url)
     # تشغيل Flask
