@@ -4,13 +4,19 @@ from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes
+from flask import Flask, request
+from threading import Thread
 
-# --- إعداد البوت ---
-TOKEN = "8162201601:AAFOBu_1ddni1jkNeqw1c-cts5EdKA4p1Ls"
+# --- متغيرات البيئة ---
+TOKEN = os.environ.get("BOT_TOKEN")
+SERVICE_ACCOUNT_JSON = os.environ.get("GOOGLE_SERVICE_JSON")
+
+if not TOKEN or not SERVICE_ACCOUNT_JSON:
+    print("⚠️ الرجاء التأكد من ضبط BOT_TOKEN وGOOGLE_SERVICE_JSON في Environment Variables")
+    exit()
 
 # --- إعداد Google Drive ---
 SCOPES = ['https://www.googleapis.com/auth/drive']
-SERVICE_ACCOUNT_JSON = os.environ.get("GOOGLE_SERVICE_JSON")
 info = json.loads(SERVICE_ACCOUNT_JSON)
 credentials = service_account.Credentials.from_service_account_info(info, scopes=SCOPES)
 drive_service = build('drive', 'v3', credentials=credentials)
@@ -55,7 +61,7 @@ async def handle_subject(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     subject = query.data
     folder_id = folders.get(subject)
-    
+
     if not folder_id:
         await query.edit_message_text("لا يوجد مجلد مخصص لهذا التخصص.")
         return
@@ -72,7 +78,6 @@ async def handle_subject(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     keyboard = []
     for file in files:
-        # تأكد من جلب رابط webViewLink لكل ملف
         file_info = drive_service.files().get(fileId=file['id'], fields='webViewLink').execute()
         link = file_info.get('webViewLink')
         if link:
@@ -85,7 +90,7 @@ async def handle_subject(update: Update, context: ContextTypes.DEFAULT_TYPE):
     reply_markup = InlineKeyboardMarkup(keyboard)
     await query.edit_message_text(text=f"محاضرات تخصص {subjects[subject]}:", reply_markup=reply_markup)
 
-# --- إنشاء البوت ---
+# --- Telegram Application ---
 app = ApplicationBuilder().token(TOKEN).build()
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CallbackQueryHandler(
@@ -93,12 +98,25 @@ app.add_handler(CallbackQueryHandler(
     pattern="^(radiology|nursing|geology|pharmacy|medicine|dentistry|psychology|cs|law|labs|engineering)$"
 ))
 
-# --- تشغيل Webhook على Render ---
+# --- Flask App for Render ---
+flask_app = Flask('')
+
+@flask_app.route('/')
+def home():
+    return "Bot is alive!"
+
+@flask_app.route(f'/{TOKEN}', methods=['POST'])
+def webhook():
+    update = Update.de_json(request.get_json(force=True), app.bot)
+    app.update_queue.put(update)
+    return "ok"
+
+def run_flask():
+    port = int(os.environ.get("PORT", 8080))
+    flask_app.run(host='0.0.0.0', port=port)
+
+# --- Start Both ---
 if __name__ == "__main__":
-    WEBHOOK_URL = f"https://{os.environ.get('RENDER_EXTERNAL_HOSTNAME')}/{TOKEN}"
-    PORT = int(os.environ.get("PORT", 8080))
-    app.run_webhook(
-        listen="0.0.0.0",
-        port=PORT,
-        webhook_url=WEBHOOK_URL
-    )
+    Thread(target=run_flask).start()
+    app.bot.set_webhook(url=f"https://{os.environ.get('RENDER_EXTERNAL_HOSTNAME')}/{TOKEN}")
+    app.run_polling()
